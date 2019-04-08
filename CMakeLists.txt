@@ -39,7 +39,7 @@ foreach(file ${models})
     configure_file(${file} ${file} COPYONLY)
 endforeach(file)
 
-add_executable(a3 ${sources} ${example_source})
+add_executable(a4 ${sources} ${example_source})
 target_link_libraries(a4 ${LIBRARIES})
 target_include_directories(a4 PRIVATE ${INCLUDES})
 target_compile_definitions(a4 PRIVATE ${DEFINITIONS})

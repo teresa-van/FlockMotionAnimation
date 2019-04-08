@@ -13,12 +13,13 @@ using namespace givr::style;
 using namespace givr::geometry;
 using namespace std;
 
+PhongStyle::InstancedRenderContext spheres;
 auto view = View(TurnTable(), Perspective());
 
-auto phongStyle = Phong(
-	LightPosition(0.0, 50.0, 75.0),
-	Colour(1.0, 0.2, 0.3)
-);
+// auto phongStyle = Phong(
+// 	LightPosition(0.0, 50.0, 75.0),
+// 	Colour(1.0, 0.2, 0.3)
+// );
 
 float u = 0.;
 mat4f m{1.f};
@@ -26,13 +27,13 @@ mat4f m{1.f};
 ////////////////////////////////////////////////////////////////////
 
 int scene = 1;
-int iterations = 100;
+int iterations = 50;
 
-float radiusAvoid = 6.0f;		
-float radiusCoherence = 8.0f;	
-float radiusAttract = 10.0f;	
-float radiusMax = 15.0f;
-float vScalar = 0.008f;
+float radiusAvoid = 16.0f;		
+float radiusCoherence = 18.0f;	
+float radiusAttract = 20.0f;	
+float radiusMax = 25.0f;
+float vScalar = 0.0005f;
 float vAvoidScalar = 0.3f;
 float vCoherenceScalar = 0.03f;
 float vAttractScalar = 0.08f;
@@ -76,6 +77,17 @@ void InitBoids()
             CreateBoid(vec3f(random(-10, 10), random(-10, 10), random(-10, 10)), 
                        vec3f(random(0, 5), random(0, 5), random(0, 5))));
     }
+	spheres = createInstancedRenderable(
+        Sphere(
+				Centroid(0,0,0),
+				Radius(0.5),
+				AzimuthPoints(3),
+				AltitudePoints(3)),
+        Phong(
+            Colour(0., 0., 1.),
+            LightPosition(10., 10.0, 10.0)
+        )
+    );
 }
 
 void UpdateVelocity(Boid * b1, Boid * b2)
@@ -109,13 +121,12 @@ void CalculateForces()
 	{
 		for (int j = 0; j < boids.size(); j++)
 		{
-			if (i != j)
-			{
-				Boid * b1 = boids.at(i);
-				Boid * b2 = boids.at(j);
+			if (i == j) continue;
 
-				UpdateVelocity(b1, b2);
-			}
+			Boid * b1 = boids[i];
+			Boid * b2 = boids[j];
+
+			UpdateVelocity(b1, b2);
 		}
 	}
 	for (int i = 0; i < boids.size(); i++)
@@ -138,8 +149,6 @@ void CalculateForces()
 
 int main(void)
 {
-    InitBoids();
-
     io::GLFWContext windows;
     auto window = windows.create(io::Window::dimensions{1024, 768}, "CPSC 587: Schools, Flocks & Herds - Teresa");
     window.enableVsync(true);
@@ -155,6 +164,7 @@ int main(void)
 
     glClearColor(1.f, 1.f, 1.f, 1.f);
 
+    InitBoids();
     window.run([&](float frameTime) 
 	{
 		view.projection.updateAspectRatio(window.width(), window.height());
@@ -168,17 +178,10 @@ int main(void)
         for (Boid * b : boids)
         {
             vec3f pos = b->position;
-            auto spheres = createRenderable(
-                Sphere(
-                    Centroid(pos.x, pos.y, pos.z),
-                    Radius(0.5),
-                    AzimuthPoints(3),
-                    AltitudePoints(3)
-                ),
-                phongStyle
-            );
-            draw(spheres, view);
+			auto m = translate(mat4f{1.f}, pos);
+			addInstance(spheres, m);
         }
+		draw(spheres, view);
 
         u += frameTime;
         
