@@ -1,6 +1,6 @@
-Mass Spring Systems Animation
+Schools, Flocks, & Herds Animation
 Author: Teresa Van
-Date: March 26th, 2019
+Date: April 12th, 2019
 Copyright (2019)
 
 Note:
@@ -39,28 +39,9 @@ cmake -G "Visual Studio 15 Win64" ..
 
 **USAGE**
 
-./a3
+./a4
 
 **USER INTREFACE**
 
-1 - Single mass
-2 - Chain pendulum
-3 - Cube of jelly
-4 - Hanging cloth
-5 - Cloth falling onto table
-
 SPACE - Pause/unpause
-
 ESC	- Quit
-
-## Description for tablecloth scene:
-To simulate a cloth falling onto the table, I set up my springs and masses like I did for the hanging cloth scene, except without any fixed masses.
-During the force calculations for each mass, I first check if the y position of the particle is less than the y position of the table,
-The problem specifications didn't state what shape the table was. 
-I initially tried a circle, but the edges looked weird due to the resolution of the cloth.
-So I changed it to a rectangular table instead. However, I included the calculations for a circular table (commented out).
-For a circle table: Plug in x and z positions of the mass into equation of a circle (x^2 + z^2 = r^2), if the result is less than r^2, then the mass is in contact with the table.
-For a rectangular table: Check if the x position of the mass is greater than the x position of the left side of the table, and less than the right side.
-                         Do the same for the z-position. If both satisfy, then the mass is in contact with the table.
-If the mass is in contact with the table, then I change that mass to a fixed mass.
-For reference, all calculations for this part happen between lines 357-366.
