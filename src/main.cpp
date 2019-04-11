@@ -14,6 +14,7 @@ using namespace givr::geometry;
 using namespace std;
 
 PhongStyle::InstancedRenderContext spheres;
+PhongStyle::InstancedRenderContext oSpheres;
 auto view = View(TurnTable(), Perspective());
 
 // auto phongStyle = Phong(
@@ -27,19 +28,19 @@ mat4f m{1.f};
 ////////////////////////////////////////////////////////////////////
 
 int scene = 1;
-int iterations = 50;
+int iterations = 1;
 
-float radiusAvoid = 16.0f;		
-float radiusCoherence = 18.0f;	
-float radiusAttract = 20.0f;	
-float radiusMax = 25.0f;
-float vScalar = 0.0005f;
-float vAvoidScalar = 0.3f;
-float vCoherenceScalar = 0.03f;
-float vAttractScalar = 0.08f;
-float velocityLimit = 5;
+float separationRadius = 3.0f;		
+float alignmentRadius = 8.0f;	
+float cohesionRadius = 8.0f;	
 
-float deltaTime = 1.f/200.f;
+float maxSpeed = 10.0;
+
+float width = 25;
+float height = 15;
+float depth = 10;
+
+float deltaTime = 1.f/60.0;
 bool paused = false;
 
 ////////////////////////////////////////////////////////////////////
@@ -51,6 +52,7 @@ struct Boid
 };
 
 vector<Boid*> boids;
+vector<vec3f> obstacles;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -70,82 +72,184 @@ Boid * CreateBoid(vec3f position, vec3f velocity)
 
 void InitBoids()
 {
-    int n = 50;
+    int n = 300;
 	for (int i = 0; i < n; i++)
     {
 		boids.push_back(
-            CreateBoid(vec3f(random(-10, 10), random(-10, 10), random(-10, 10)), 
-                       vec3f(random(0, 5), random(0, 5), random(0, 5))));
+            CreateBoid(vec3f(random(-width, width), random(-height, height), random(-depth, depth)), 
+                       vec3f(random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed))));
     }
+
 	spheres = createInstancedRenderable(
         Sphere(
 				Centroid(0,0,0),
-				Radius(0.5),
-				AzimuthPoints(3),
-				AltitudePoints(3)),
+				Radius(0.3),
+				AzimuthPoints(6),
+				AltitudePoints(6)),
         Phong(
-            Colour(0., 0., 1.),
-            LightPosition(10., 10.0, 10.0)
+            Colour(0.0, 0.5, 1.0),
+            LightPosition(30.0, 30.0, 50.0)
         )
     );
 }
 
-void UpdateVelocity(Boid * b1, Boid * b2)
+void InitObstacles()
 {
-    float radius = length(b1->position - b2->position);
-	vec3f  distance = b2->position - b1->position;
-	vec3f velocity = vec3f(0, 0, 0);
+	int n = 10;
+	for (int i = 0; i < n; i++)
+    {
+		obstacles.push_back(vec3f(random(-width, width), random(-height, height), random(-depth, depth)));
+    }
 
-	if (radius <= radiusMax)
-	{
-		if (radius < radiusAvoid)
-		{
-			velocity += (vAvoidScalar * (-distance));
-		}
-		else if (radius < radiusCoherence)
-		{
-			velocity += vCoherenceScalar * b2->velocity;
-		} 
-		else
-		{
-			velocity += vAttractScalar * distance;
-		}
-	}
-    
-	b1->velocity += (vScalar * velocity);
+	oSpheres = createInstancedRenderable(
+        Sphere(
+				Centroid(0,0,0),
+				Radius(1.0),
+				AzimuthPoints(6),
+				AltitudePoints(6)),
+        Phong(
+            Colour(1.0, 0.0, 0.0),
+            LightPosition(30.0, 30.0, 50.0)
+        )
+    );
+
 }
 
-void CalculateForces()
+void BoundPosition(Boid * boid)
 {
-	for (int i = 0; i < boids.size(); i++)
-	{
-		for (int j = 0; j < boids.size(); j++)
-		{
-			if (i == j) continue;
+	float radius = 40;
+	vec3f velocity(0,0,0);
 
-			Boid * b1 = boids[i];
-			Boid * b2 = boids[j];
+	if (length(boid->position) - radius > 0)
+		boid->velocity *= -3;
 
-			UpdateVelocity(b1, b2);
-		}
-	}
-	for (int i = 0; i < boids.size(); i++)
-	{
-		Boid * boid = boids.at(i);
-        boid->position += deltaTime * boid->velocity;
-	}
+	// if (boid->position.x > width)
+	// 	velocity.x = -speed;
+	// else if (boid->position.x < -width)
+	// 	velocity.x = speed;
+
+	// if (boid->position.y > height)
+	// 	velocity.y = -speed;
+	// else if (boid->position.y < -height)
+	// 	velocity.y = speed;
+
+	// if (boid->position.z > depth)
+	// 	velocity.z = -speed;
+	// else if (boid->position.z < -depth)
+	// 	velocity.z = speed;
+
+	// return velocity;
 }
 
-// void DrawTriangle(int i1, int i2, int i3)
-// {
-// 	auto t = Triangle(
-// 		Point1(particles[i1]->position.x, particles[i1]->position.y, particles[i1]->position.z),
-// 		Point2(particles[i2]->position.x, particles[i2]->position.y, particles[i2]->position.z),
-// 		Point3(particles[i3]->position.x, particles[i3]->position.y, particles[i3]->position.z)
-// 	);
-// 	auto triangle = createRenderable(t, phongStyle);
-// 	draw(triangle, view);
-// }
+vec3f Separation(Boid * boid)
+{
+	vec3f displacement(0,0,0);
+	int count = 0;
+	for (Boid * b : boids)
+	{
+		if (b == boid) continue;
+
+		float distance = length(b->position - boid->position);
+		if (distance > 0 && distance < separationRadius)
+		{
+			displacement -= (b->position - boid->position);
+			count++;
+		}
+	}
+
+	for (vec3f o : obstacles)
+	{
+		float distance = length(o - boid->position);
+		if (distance > 0 && distance < separationRadius * 2.5)
+		{
+			displacement -= (o - boid->position);
+			count++;
+		}
+	}
+
+	if (count > 0)
+	{
+		displacement /= count;
+		displacement /= 5;
+	}
+
+	return displacement;
+}
+
+vec3f Alignment(Boid * boid)
+{
+	vec3f sum(0,0,0);
+	int count = 0;
+	for (Boid * b : boids)
+	{
+		if (b == boid) continue;
+		// if (count >= 5) break;
+
+		float distance = length(b->position - boid->position);
+		if (distance > 0 && distance < alignmentRadius)
+		{
+			sum += b->velocity;
+			count++;
+		}
+	}
+
+	if (count > 0)
+	{
+		sum /= count;
+		sum -= boid->velocity;
+		sum /= 50;
+	}
+
+	return sum;
+}
+
+vec3f Cohesion(Boid * boid)
+{
+	vec3f center(0,0,0);
+	int count = 0;
+	for (Boid * b : boids)
+	{
+		if (b == boid) continue;
+		// if (count >= 5) break;
+
+		float distance = length(b->position - boid->position);
+		if (distance > 0 && distance < cohesionRadius)		
+		{
+			center += b->position;
+			count++;
+		}
+	}
+
+	if (count > 0)
+	{
+		center /= count;
+		center -= boid->position;
+		center /= 50;
+	}
+
+	return center;
+}
+
+void MoveBoids()
+{
+	vec3f v1, v2, v3, v4;
+	for (Boid * b : boids)
+	{
+		v1 = Cohesion(b);
+		v2 = Separation(b);
+		v3 = Alignment(b);
+		// v4 = BoundPosition(b);
+
+		b->velocity += (v1 + v2 + v3);// + v4);
+
+		if (length(b->velocity) > maxSpeed)
+			b->velocity = (b->velocity / length(b->velocity)) * maxSpeed;
+
+		BoundPosition(b);
+
+		b->position += b->velocity * deltaTime;
+	}
+}
 
 int main(void)
 {
@@ -165,6 +269,8 @@ int main(void)
     glClearColor(1.f, 1.f, 1.f, 1.f);
 
     InitBoids();
+	InitObstacles();
+
     window.run([&](float frameTime) 
 	{
 		view.projection.updateAspectRatio(window.width(), window.height());
@@ -172,7 +278,7 @@ int main(void)
 		if (!paused)
 		{
 			for(int i = 0; i < iterations; i++)
-				CalculateForces();
+				MoveBoids();
 		}
 		
         for (Boid * b : boids)
@@ -182,6 +288,13 @@ int main(void)
 			addInstance(spheres, m);
         }
 		draw(spheres, view);
+
+		for (vec3f o : obstacles)
+        {
+			auto m = translate(mat4f{1.f}, o);
+			addInstance(oSpheres, m);
+        }
+		draw(oSpheres, view);
 
         u += frameTime;
         
