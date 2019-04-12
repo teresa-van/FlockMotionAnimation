@@ -1,0 +1,2 @@
+boids: 300
+obstacles: 8
