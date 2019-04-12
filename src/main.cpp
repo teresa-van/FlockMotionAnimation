@@ -47,6 +47,7 @@ bool paused = false;
 
 struct Boid
 {
+    vec3f prevPosition;
     vec3f position;
     vec3f velocity;
 };
@@ -80,14 +81,22 @@ void InitBoids()
                        vec3f(random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed))));
     }
 
+	// spheres = createInstancedRenderable(
+    //     Sphere(
+	// 			Centroid(0,0,0),
+	// 			Radius(0.3),
+	// 			AzimuthPoints(6),
+	// 			AltitudePoints(6)),
+    //     Phong(
+    //         Colour(0.0, 0.5, 1.0),
+    //         LightPosition(30.0, 30.0, 50.0)
+    //     )
+    // );
+
 	spheres = createInstancedRenderable(
-        Sphere(
-				Centroid(0,0,0),
-				Radius(0.3),
-				AzimuthPoints(6),
-				AltitudePoints(6)),
+        Mesh(Filename("./fishred.obj")),
         Phong(
-            Colour(0.0, 0.5, 1.0),
+            Colour(1.0, 1.5, 3.0),
             LightPosition(30.0, 30.0, 50.0)
         )
     );
@@ -95,7 +104,7 @@ void InitBoids()
 
 void InitObstacles()
 {
-	int n = 10;
+	int n = 8;
 	for (int i = 0; i < n; i++)
     {
 		obstacles.push_back(vec3f(random(-width, width), random(-height, height), random(-depth, depth)));
@@ -104,11 +113,11 @@ void InitObstacles()
 	oSpheres = createInstancedRenderable(
         Sphere(
 				Centroid(0,0,0),
-				Radius(1.0),
-				AzimuthPoints(6),
-				AltitudePoints(6)),
+				Radius(2.0),
+				AzimuthPoints(10),
+				AltitudePoints(10)),
         Phong(
-            Colour(1.0, 0.0, 0.0),
+            Colour(0.5, 0.5, 0.5),
             LightPosition(30.0, 30.0, 50.0)
         )
     );
@@ -117,11 +126,11 @@ void InitObstacles()
 
 void BoundPosition(Boid * boid)
 {
-	float radius = 40;
+	float radius = 45;
 	vec3f velocity(0,0,0);
 
-	if (length(boid->position) - radius > 0)
-		boid->velocity *= -3;
+	if (length(boid->position) - radius >= 0)
+		boid->velocity *= -3.25;
 
 	// if (boid->position.x > width)
 	// 	velocity.x = -speed;
@@ -160,7 +169,7 @@ vec3f Separation(Boid * boid)
 	for (vec3f o : obstacles)
 	{
 		float distance = length(o - boid->position);
-		if (distance > 0 && distance < separationRadius * 2.5)
+		if (distance > 0 && distance < separationRadius * 2.0)
 		{
 			displacement -= (o - boid->position);
 			count++;
@@ -247,6 +256,7 @@ void MoveBoids()
 
 		BoundPosition(b);
 
+		b->prevPosition = b->position;
 		b->position += b->velocity * deltaTime;
 	}
 }
@@ -266,7 +276,7 @@ int main(void)
 
     TurnTableControls controls(window, view.camera);
 
-    glClearColor(1.f, 1.f, 1.f, 1.f);
+    glClearColor(0.f, 0.075f, 0.15f, 1.0f);
 
     InitBoids();
 	InitObstacles();
@@ -283,8 +293,18 @@ int main(void)
 		
         for (Boid * b : boids)
         {
-            vec3f pos = b->position;
-			auto m = translate(mat4f{1.f}, pos);
+			vec3f direction = b->position - b->prevPosition;
+			direction /= length(direction);
+			vec3f target = b->position + (0.01f * direction);
+
+			vec3f right = cross(direction, vec3f(0,1,0));
+			vec3f up = cross(right, direction);
+
+			auto m = translate(mat4f{1.f}, b->position);
+			m *= lookAt(b->position, target, up);
+			m = translate(m, b->position); // Needed this otherwise the fish would teleport...
+			m = scale(m, vec3f{0.25f});
+
 			addInstance(spheres, m);
         }
 		draw(spheres, view);
