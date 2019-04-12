@@ -5,6 +5,9 @@
 #include "io.h"
 #include "turntable_controls.h"
 
+#include <iostream>
+#include <fstream>
+
 //if we want to add a file, eg: #include "circle.h"
 
 using namespace givr;
@@ -45,6 +48,9 @@ float deltaTime = 1.f/60.0;
 bool paused = false;
 bool tend = false;
 
+int numBoids = 300;
+int numObstacles = 8;
+
 ////////////////////////////////////////////////////////////////////
 
 struct Boid
@@ -75,25 +81,13 @@ Boid * CreateBoid(vec3f position, vec3f velocity)
 
 void InitBoids()
 {
-    int n = 300;
+    int n = numBoids;
 	for (int i = 0; i < n; i++)
     {
 		boids.push_back(
             CreateBoid(vec3f(random(-width + 15, width - 15), random(-height + 20, height - 20), random(-depth, depth)), 
                        vec3f(random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed))));
     }
-
-	// spheres = createInstancedRenderable(
-    //     Sphere(
-	// 			Centroid(0,0,0),
-	// 			Radius(0.3),
-	// 			AzimuthPoints(6),
-	// 			AltitudePoints(6)),
-    //     Phong(
-    //         Colour(0.0, 0.5, 1.0),
-    //         LightPosition(30.0, 30.0, 50.0)
-    //     )
-    // );
 
 	spheres = createInstancedRenderable(
         Mesh(Filename("./fishred.obj")),
@@ -106,7 +100,7 @@ void InitBoids()
 
 void InitObstacles()
 {
-	int n = 8;
+	int n = numObstacles;
 	for (int i = 0; i < n; i++)
     {
 		obstacles.push_back(vec3f(random(-width + 15, width - 15), random(-height + 15, height - 15), random(-depth, depth)));
@@ -133,23 +127,6 @@ void BoundPosition(Boid * boid)
 
 	if (length(boid->position) - radius >= 0)
 		boid->velocity *= -3.25;
-
-	// if (boid->position.x > width)
-	// 	velocity.x = -speed;
-	// else if (boid->position.x < -width)
-	// 	velocity.x = speed;
-
-	// if (boid->position.y > height)
-	// 	velocity.y = -speed;
-	// else if (boid->position.y < -height)
-	// 	velocity.y = speed;
-
-	// if (boid->position.z > depth)
-	// 	velocity.z = -speed;
-	// else if (boid->position.z < -depth)
-	// 	velocity.z = speed;
-
-	// return velocity;
 }
 
 vec3f Separation(Boid * boid)
@@ -194,7 +171,6 @@ vec3f Alignment(Boid * boid)
 	for (Boid * b : boids)
 	{
 		if (b == boid) continue;
-		// if (count >= 5) break;
 
 		float distance = length(b->position - boid->position);
 		if (distance > 0 && distance < alignmentRadius)
@@ -221,7 +197,6 @@ vec3f Cohesion(Boid * boid)
 	for (Boid * b : boids)
 	{
 		if (b == boid) continue;
-		// if (count >= 5) break;
 
 		float distance = length(b->position - boid->position);
 		if (distance > 0 && distance < cohesionRadius)		
@@ -244,7 +219,7 @@ vec3f Cohesion(Boid * boid)
 vec3f TendToMouse(Boid * boid)
 {
 	vec3f displacement = mousePosition - boid->position;
-	displacement /= 200;
+	displacement /= 300;
 	return displacement;
 }
 
@@ -256,9 +231,10 @@ void MoveBoids()
 		v1 = Cohesion(b);
 		v2 = Separation(b);
 		v3 = Alignment(b);
-		if (tend) v4 = TendToMouse(b);
 
-		b->velocity += (v1 + v2 + v3 + v4);
+		b->velocity += (v1 + v2 + v3);
+
+		if (tend) b->velocity += TendToMouse(b);
 
 		if (length(b->velocity) > maxSpeed)
 			b->velocity = (b->velocity / length(b->velocity)) * maxSpeed;
@@ -270,6 +246,36 @@ void MoveBoids()
 	}
 }
 
+void InitialStateFromFile()
+{
+	ifstream file;
+	string line;
+	file.open ("initialstate.txt");
+	if (file.is_open())
+	{
+		while (getline(file, line))
+    	{
+			if (line.find("boids") != string::npos)
+			{
+				line.erase(0, line.find_first_of(":")+2);
+				numBoids = stoi(line);
+			}
+			else
+			{
+				line.erase(0, line.find_first_of(":")+2);
+				numObstacles = stoi(line);
+			}
+				
+		}
+		file.close();
+	}
+	else
+		cout << "Unable to open file.\n";
+
+	maxSpeed = min(10.0, (numBoids / 300.0) * 10.0);
+	maxSpeed = max(2.0f, maxSpeed);
+}
+
 int main(void)
 {
     io::GLFWContext windows;
@@ -279,13 +285,17 @@ int main(void)
         | io::Key(GLFW_KEY_SPACE,
             [&](auto const &event) {
             if (event.action == GLFW_PRESS)
+			{
                 tend = !tend;
-            });
+				separationRadius = (separationRadius == 3.0) ? 3.5 : 3.0;
+			}
+		});
 
     TurnTableControls controls(window, view.camera);
 
     glClearColor(0.f, 0.075f, 0.15f, 1.0f);
 
+	InitialStateFromFile();
     InitBoids();
 	InitObstacles();
 
@@ -305,19 +315,17 @@ int main(void)
         {
 			vec3f direction = b->position - b->prevPosition;
 			direction /= length(direction);
-			vec3f target = b->position + (0.01f * direction);
+			vec3f target = b->position + (0.1f * direction);
 
 			vec3f right = cross(direction, vec3f(0,1,0));
 			right /= length(right);
 			vec3f up = cross(right, direction);
 			up /= length(up);
 
-			// cout << up.x << "," << up.y << "," << up.z << "\n";
-
 			auto m = translate(mat4f{1.f}, b->position);
+			m = scale(m, vec3f{0.25f});
 			m *= lookAt(b->position, target, up);
 			m = translate(m, b->position); // Needed this otherwise the fish would teleport...
-			m = scale(m, vec3f{0.25f});
 
 			addInstance(spheres, m);
         }
