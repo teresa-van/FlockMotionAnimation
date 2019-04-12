@@ -16,6 +16,7 @@ using namespace std;
 PhongStyle::InstancedRenderContext spheres;
 PhongStyle::InstancedRenderContext oSpheres;
 auto view = View(TurnTable(), Perspective());
+vec3f mousePosition;
 
 // auto phongStyle = Phong(
 // 	LightPosition(0.0, 50.0, 75.0),
@@ -36,12 +37,13 @@ float cohesionRadius = 8.0f;
 
 float maxSpeed = 10.0;
 
-float width = 25;
-float height = 15;
+float width = 40;
+float height = 30;
 float depth = 10;
 
 float deltaTime = 1.f/60.0;
 bool paused = false;
+bool tend = false;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -77,7 +79,7 @@ void InitBoids()
 	for (int i = 0; i < n; i++)
     {
 		boids.push_back(
-            CreateBoid(vec3f(random(-width, width), random(-height, height), random(-depth, depth)), 
+            CreateBoid(vec3f(random(-width + 15, width - 15), random(-height + 20, height - 20), random(-depth, depth)), 
                        vec3f(random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed), random(-maxSpeed, maxSpeed))));
     }
 
@@ -107,7 +109,7 @@ void InitObstacles()
 	int n = 8;
 	for (int i = 0; i < n; i++)
     {
-		obstacles.push_back(vec3f(random(-width, width), random(-height, height), random(-depth, depth)));
+		obstacles.push_back(vec3f(random(-width + 15, width - 15), random(-height + 15, height - 15), random(-depth, depth)));
     }
 
 	oSpheres = createInstancedRenderable(
@@ -239,6 +241,13 @@ vec3f Cohesion(Boid * boid)
 	return center;
 }
 
+vec3f TendToMouse(Boid * boid)
+{
+	vec3f displacement = mousePosition - boid->position;
+	displacement /= 200;
+	return displacement;
+}
+
 void MoveBoids()
 {
 	vec3f v1, v2, v3, v4;
@@ -247,9 +256,9 @@ void MoveBoids()
 		v1 = Cohesion(b);
 		v2 = Separation(b);
 		v3 = Alignment(b);
-		// v4 = BoundPosition(b);
+		if (tend) v4 = TendToMouse(b);
 
-		b->velocity += (v1 + v2 + v3);// + v4);
+		b->velocity += (v1 + v2 + v3 + v4);
 
 		if (length(b->velocity) > maxSpeed)
 			b->velocity = (b->velocity / length(b->velocity)) * maxSpeed;
@@ -266,13 +275,12 @@ int main(void)
     io::GLFWContext windows;
     auto window = windows.create(io::Window::dimensions{1024, 768}, "CPSC 587: Schools, Flocks & Herds - Teresa");
     window.enableVsync(true);
-    // window.keyboardCommands()
-    //     | io::Key(GLFW_KEY_1,
-    //         [&](auto const &event) {
-    //         if (event.action == GLFW_PRESS)
-    //             SingleSpring();
-	// 			iterations = 20;
-    //         })
+    window.keyboardCommands()
+        | io::Key(GLFW_KEY_SPACE,
+            [&](auto const &event) {
+            if (event.action == GLFW_PRESS)
+                tend = !tend;
+            });
 
     TurnTableControls controls(window, view.camera);
 
@@ -283,6 +291,8 @@ int main(void)
 
     window.run([&](float frameTime) 
 	{
+		mousePosition = vec3f(((controls.cursorPosition.x - (window.width() / 2)) / (window.width() / 2)) * width, 
+							  -((controls.cursorPosition.y - (window.height() / 2)) / (window.height() / 2)) * height, 0);
 		view.projection.updateAspectRatio(window.width(), window.height());
 
 		if (!paused)
@@ -298,7 +308,11 @@ int main(void)
 			vec3f target = b->position + (0.01f * direction);
 
 			vec3f right = cross(direction, vec3f(0,1,0));
+			right /= length(right);
 			vec3f up = cross(right, direction);
+			up /= length(up);
+
+			// cout << up.x << "," << up.y << "," << up.z << "\n";
 
 			auto m = translate(mat4f{1.f}, b->position);
 			m *= lookAt(b->position, target, up);

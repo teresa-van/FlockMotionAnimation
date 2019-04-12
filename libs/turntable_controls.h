@@ -4,6 +4,8 @@
 template <typename CameraT>
 class TurnTableControls {
     public:
+        io::CursorPosition cursorPosition;
+
         TurnTableControls(
             io::Window &w,
             CameraT &c
@@ -61,7 +63,6 @@ class TurnTableControls {
     private:
         io::Window &m_window;
         CameraT &m_camera;
-        io::CursorPosition cursorPosition;
         bool cursorLocked = false;
         bool cursorZoom = false;
         bool xLock = false;
