@@ -41,7 +41,13 @@ cmake -G "Visual Studio 15 Win64" ..
 
 ./a4
 
-**USER INTREFACE**
+**USER INTERFACE**
 
-SPACE - Pause/unpause
-ESC	- Quit
+The default number of boids and obstacles is 300 and 8 respectively.
+You can edit 'initialstate.txt' to change these variables before running the program.
+
+Make sure 'initialstate.txt' and 'fishred.obj' are in the same folder as the program.
+
+KEY CONTROLS:
+    - SPACE - Toggle interactively guiding the fish using mouse
+    - ESC	- Quit

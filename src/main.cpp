@@ -45,7 +45,6 @@ float height = 30;
 float depth = 10;
 
 float deltaTime = 1.f/60.0;
-bool paused = false;
 bool tend = false;
 
 int numBoids = 300;
@@ -75,6 +74,7 @@ Boid * CreateBoid(vec3f position, vec3f velocity)
     Boid * boid = new Boid();
     boid->position = position;
     boid->velocity = velocity;
+	boid->prevPosition = boid->position - boid->velocity * deltaTime;
 
     return boid;
 }
@@ -219,7 +219,7 @@ vec3f Cohesion(Boid * boid)
 vec3f TendToMouse(Boid * boid)
 {
 	vec3f displacement = mousePosition - boid->position;
-	displacement /= 300;
+	displacement /= 175;
 	return displacement;
 }
 
@@ -272,7 +272,7 @@ void InitialStateFromFile()
 	else
 		cout << "Unable to open file.\n";
 
-	maxSpeed = min(10.0, (numBoids / 300.0) * 10.0);
+	maxSpeed = min(10.0, (numBoids / 300.0) * 15.0);
 	maxSpeed = max(2.0f, maxSpeed);
 }
 
@@ -305,12 +305,9 @@ int main(void)
 							  -((controls.cursorPosition.y - (window.height() / 2)) / (window.height() / 2)) * height, 0);
 		view.projection.updateAspectRatio(window.width(), window.height());
 
-		if (!paused)
-		{
-			for(int i = 0; i < iterations; i++)
-				MoveBoids();
-		}
-		
+		for(int i = 0; i < iterations; i++)
+			MoveBoids();
+	
         for (Boid * b : boids)
         {
 			vec3f direction = b->position - b->prevPosition;
@@ -322,10 +319,10 @@ int main(void)
 			vec3f up = cross(right, direction);
 			up /= length(up);
 
-			auto m = translate(mat4f{1.f}, b->position);
+			// auto m = translate(mat4f{1.f}, b->position);
+			m = inverse(lookAt(b->position, b->prevPosition, up));
 			m = scale(m, vec3f{0.25f});
-			m *= lookAt(b->position, target, up);
-			m = translate(m, b->position); // Needed this otherwise the fish would teleport...
+			// m = translate(m, b->position); // Needed this otherwise the fish would teleport...
 
 			addInstance(spheres, m);
         }
